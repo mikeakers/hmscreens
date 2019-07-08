@@ -33,6 +33,7 @@ void printHelp();
 void displaysInfo();
 void screenIDs();
 void setMainScreen(NSString* screenID, NSString* othersStartingPosition);
+void swapDisplays();
 
 #define MAX_DISPLAYS 32
 
@@ -54,6 +55,8 @@ int main (int argc, const char * argv[]) {
 		NSString* screenID = [[NSUserDefaults standardUserDefaults] stringForKey:@"setMainID"];
 		NSString* othersStartingPosition = [[NSUserDefaults standardUserDefaults] stringForKey:@"othersStartingPosition"];
 		setMainScreen(screenID, othersStartingPosition);
+  } else if ([[pInfo objectAtIndex:1] isEqualToString:@"-swapDisplays"]) {
+    swapDisplays();
 	} else {
 		printHelp();
 	}
@@ -145,7 +148,7 @@ void setMainScreen(NSString* screenID, NSString* othersStartingPosition) {
 	CGBeginDisplayConfiguration(&config);
 	for(i=0; i<displayCount; i++) {
 		if (i == newMainScreenIndex) { // make this one the main screen
-			CGConfigureDisplayOrigin(config, activeDisplays[i], 0, 0); //Set the as the new main display by positionning at 0,0
+			CGConfigureDisplayOrigin(config, activeDisplays[i], 0, 0); //Set the as the new main display by positioning at 0,0
 		} else {
 			NSString* thisPos = [othersPos objectAtIndex:othersCount];
 			
@@ -246,4 +249,35 @@ void displaysInfo() {
 		
 		printf("\n");
 	}
+}
+
+void swapDisplays() {
+  NSArray* allScreens = [NSScreen screens];
+
+  if (allScreens.count != 2) {
+    printf("ERROR: swapDisplays only supports 2 screens\n");
+    exit(1);
+  }
+
+  for (int i = 0; i < [allScreens count]; i++) {
+    NSScreen* thisScreen = [allScreens objectAtIndex:i];
+    NSDictionary* deviceDescription = [thisScreen deviceDescription];
+    //NSLog(@"deviceDescription: %@", deviceDescription);
+
+    // screen id
+    NSNumber* screenID = [deviceDescription valueForKey:@"NSScreenNumber"];
+
+    // global position
+    NSRect frame = [thisScreen frame];
+    int x1 = frame.origin.x;
+    int y1 = frame.origin.y;
+
+    if (x1 == 0 && y1 == 0) {
+      printf("%d is the main display\n", screenID.intValue);
+    } else {
+      printf("%d is the second display\n", screenID.intValue);
+      printf("making %d the main display\n", screenID.intValue);
+      setMainScreen(screenID.stringValue, @"left");
+    }
+  }
 }
