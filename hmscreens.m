@@ -28,6 +28,7 @@
 
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 void printHelp();
 void displaysInfo();
@@ -225,19 +226,29 @@ void displaysInfo() {
 		NSString* colorSpace = [deviceDescription valueForKey:NSDeviceColorSpaceName];
 		printf("Color Space: %s\n", [colorSpace UTF8String]);
 		
-		// depth ie. 32 is millions of colors, 16 is thousands, 8 is 256
-		long bpp = CGDisplayBitsPerPixel(cgScreenID);
+		// depth ie. 32 & 24 are millions of colors, 16 is thousands, 8 is 256
+		NSWindowDepth depth = [thisScreen depth];
+		int bpp = NSBitsPerPixelFromDepth(depth);
 		printf("BitsPerPixel: %d\n", bpp);
+
+		// bpp might not report >24 when HDR. this is from SO, quite possible it's wrong
+		Boolean wideGamut = [thisScreen canRepresentDisplayGamut:NSDisplayGamutP3];
+		if (wideGamut) {
+			printf("HDR: YES\n");
+		} else {
+			printf("HDR: NO\n");
+		}
 		
 		// resolution
 		NSSize resolution = [[deviceDescription objectForKey:NSDeviceResolution] sizeValue];
 		printf("Resolution(dpi): %s\n", [NSStringFromSize(resolution) UTF8String]);
 		
 		// refresh rate
-		long refresh;
-		CFNumberRef number = CFDictionaryGetValue(CGDisplayCurrentMode(cgScreenID), kCGDisplayRefreshRate); 
-		CFNumberGetValue(number, kCFNumberLongType, &refresh);
-		printf("Refresh Rate: %d\n", refresh);
+		double refresh;
+		CGDisplayModeRef mode = CGDisplayCopyDisplayMode(cgScreenID);
+		refresh = CGDisplayModeGetRefreshRate(mode);
+		CGDisplayModeRelease(mode);
+		printf("Refresh Rate: %.1f\n", refresh);
 		
 		// usesQuartzExtreme
 		BOOL usesQuartzExtreme = CGDisplayUsesOpenGLAcceleration(cgScreenID);
