@@ -35,6 +35,10 @@ void displaysInfo();
 void screenIDs();
 void setMainScreen(NSString* screenID, NSString* othersStartingPosition);
 void swapDisplays();
+void setScreenActive(NSString* screenID, BOOL enable);
+
+// undocumented CoreGraphics function
+extern CGError CGSConfigureDisplayEnabled(CGDisplayConfigRef, CGDirectDisplayID, bool);
 
 #define MAX_DISPLAYS 32
 
@@ -55,9 +59,27 @@ int main (int argc, const char * argv[]) {
 	} else if ([[pInfo objectAtIndex:1] isEqualToString:@"-setMainID"]) {
 		NSString* screenID = [[NSUserDefaults standardUserDefaults] stringForKey:@"setMainID"];
 		NSString* othersStartingPosition = [[NSUserDefaults standardUserDefaults] stringForKey:@"othersStartingPosition"];
-		setMainScreen(screenID, othersStartingPosition);
-  } else if ([[pInfo objectAtIndex:1] isEqualToString:@"-swapDisplays"]) {
-    swapDisplays();
+        if (!screenID || [screenID intValue] == 0 || othersStartingPosition || [othersStartingPosition length] == 0) {
+            printHelp();
+        } else {
+            setMainScreen(screenID, othersStartingPosition);
+        }
+    } else if ([[pInfo objectAtIndex:1] isEqualToString:@"-swapDisplays"]) {
+        swapDisplays();
+    } else if ([[pInfo objectAtIndex:1] isEqualToString:@"-deactivate"]) {
+        NSString* screenID = [[NSUserDefaults standardUserDefaults] stringForKey:@"deactivate"];
+        if (!screenID || [screenID intValue] == 0) {
+            printHelp();
+        } else {
+            setScreenActive(screenID, false);
+        }
+    } else if ([[pInfo objectAtIndex:1] isEqualToString:@"-activate"]) {
+        NSString* screenID = [[NSUserDefaults standardUserDefaults] stringForKey:@"activate"];
+        if (!screenID || [screenID intValue] == 0) {
+            printHelp();
+        } else {
+            setScreenActive(screenID, true);
+        }
 	} else {
 		printHelp();
 	}
@@ -168,6 +190,24 @@ void setMainScreen(NSString* screenID, NSString* othersStartingPosition) {
 	CGCompleteDisplayConfiguration(config, kCGConfigureForSession);
 }
 
+void setScreenActive(NSString* screenID, BOOL active) {
+    CGDirectDisplayID cgScreenID = (CGDirectDisplayID)[screenID intValue];
+    CGDisplayConfigRef config;
+    CGBeginDisplayConfiguration(&config);
+    
+    CGError err = CGSConfigureDisplayEnabled(config, cgScreenID, active);
+    
+    if (err != kCGErrorSuccess)
+    {
+        printf("Error: Unable to %s screen ID %s, error %d\n", active?"activate":"deactivate", [screenID UTF8String], err);
+        CGCancelDisplayConfiguration(config);
+    }
+    else
+    {
+        CGCompleteDisplayConfiguration(config, kCGConfigureForSession);
+    }
+}
+
 void printHelp() {
 	NSString* a = @"Use hmscreens to either get information about your screens";
 	NSString* b = @"or for setting the main screen (the screen with the menu bar).";
@@ -179,26 +219,29 @@ void printHelp() {
 	NSString* g = @"[-setMainID <Screen ID>] Screen ID of the screen that you want to make the main screen";
 	NSString* h = @"[-othersStartingPosition <position>] left, right, top, or bottom";
 	NSString* i = @"\t\tuse this with -setMainID to determine placement of other screens";
+    NSString* j = @"[-activate <Screen ID>] Screen ID of an active screen that you want make inactive";
+    NSString* k = @"[-deactivate <Screen ID>] Screen ID of an inactive screen that you want to make active";
+
+	NSString* o = @"Examples:";
+	NSString* p = @"hmscreens -info";
+	NSString* q = @"\treturns information about your attached screens including the Screen ID";
 	
-	NSString* j = @"Examples:";
-	NSString* k = @"hmscreens -info";
-	NSString* l = @"\treturns information about your attached screens including the Screen ID";
+	NSString* r = @"hmscreens -setMainID 69670848 -othersStartingPosition left";
+	NSString* s = @"\tmakes the screen with the Screen ID 69670848 the main screen.";
+	NSString* t = @"\tAlso positions other screens to the left of the main screen as shown";
+	NSString* u = @"\tunder the \"Arrangement\" section of the Displays preference pane.";
 	
-	NSString* m = @"hmscreens -setMainID 69670848 -othersStartingPosition left";
-	NSString* n = @"\tmakes the screen with the Screen ID 69670848 the main screen.";
-	NSString* o = @"\tAlso positions other screens to the left of the main screen as shown";
-	NSString* p = @"\tunder the \"Arrangement\" section of the Displays preference pane.";
+	NSString* v = @"NOTE: Global Position {0, 0} coordinate (as shown under -info)";
+	NSString* w = @"\tis the lower left corner of the main screen";
 	
-	NSString* q = @"NOTE: Global Position {0, 0} coordinate (as shown under -info)";
-	NSString* r = @"\tis the lower left corner of the main screen";
-	
-	NSString* z = [NSString stringWithFormat:@"%@\n%@\n\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n\n%@\n%@\n%@\n\n%@\n%@\n%@\n%@\n\n%@\n%@\n",a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r];
+	NSString* z = [NSString stringWithFormat:@"%@\n%@\n\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n\n%@\n%@\n%@\n\n%@\n%@\n%@\n%@\n\n%@\n%@\n",a,b,c,d,e,f,g,h,i,j,k,o,p,q,r,s,t,u,v,w];
 	printf("%s\n", [z UTF8String]);
 }
 
 void displaysInfo() {
 	NSArray* allScreens = [NSScreen screens];
-	
+    NSMutableSet* onlineScreenIDs = [[NSMutableSet alloc] init];
+    
 	int i;
 	for (i=0; i<[allScreens count]; i++) {
 		NSScreen* thisScreen = [allScreens objectAtIndex:i];
@@ -210,6 +253,8 @@ void displaysInfo() {
 		CGDirectDisplayID cgScreenID = (CGDirectDisplayID)[screenID intValue];
 		printf("Screen ID: %i\n", [screenID intValue]);
 		
+        [onlineScreenIDs addObject: screenID];
+        
 		// size
 		NSSize size = [[deviceDescription objectForKey:NSDeviceSize] sizeValue];
 		printf("Size: %s\n", [NSStringFromSize(size) UTF8String]);
@@ -260,6 +305,33 @@ void displaysInfo() {
 		
 		printf("\n");
 	}
+    
+    const int hugeDisplaysCount = 32;
+    uint32_t allDisplaysCount = 0;
+    CGDirectDisplayID allDisplays[hugeDisplaysCount];
+    if (CGGetOnlineDisplayList(hugeDisplaysCount, allDisplays, &allDisplaysCount) == kCGErrorSuccess) {
+        for (int i = 0; i < allDisplaysCount; ++i) {
+            CGDirectDisplayID cgScreenID = allDisplays[i];
+            if ([onlineScreenIDs containsObject: @(cgScreenID)]) {
+                continue;
+            }
+            
+            if (!CGDisplayIsActive(cgScreenID)) {
+                printf("Disabled screen ID: %d\n", cgScreenID);
+            } else if (CGDisplayIsInMirrorSet(cgScreenID)) {
+                printf("Mirrored screen ID: %d\n", cgScreenID);
+            } else {
+                printf("Additional omitted screen ID: %d\n", cgScreenID);
+            }
+            
+            // size
+            CGDisplayModeRef mode = CGDisplayCopyDisplayMode(cgScreenID);
+            NSSize size = NSMakeSize(CGDisplayModeGetPixelWidth(mode), CGDisplayModeGetPixelHeight(mode));
+            printf("Size: %s\n", [NSStringFromSize(size) UTF8String]);
+            
+            printf("\n");
+        }
+    }
 }
 
 void swapDisplays() {
