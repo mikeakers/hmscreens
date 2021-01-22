@@ -8,10 +8,13 @@
 //
 // Usage: hmscreens
 // [-h] shows the help text
-// [-info] shows information about the connected screens
+// [-info [<Screen ID>]] Screen ID to show information about / without ID to show info for all connected screens
+// [-modes <Screen ID>] Screen ID to show all supported resolution modes
 // [-screenIDs] returns only the screen IDs for the connected screens
 // [-setMainID <Screen ID>] Screen ID of the screen that you want to make the main screen
 // [-othersStartingPosition <position>] left, right, top, or bottom... with -setMainID, this determines placement of other screens
+// [-activate <Screen ID>] Screen ID of an active screen that you want make inactive
+// [-deactivate <Screen ID>] Screen ID of an inactive screen that you want to make active
 //
 // Examples:
 // hmscreens -info
@@ -29,9 +32,11 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <CoreVideo/CoreVideo.h>
 
 void printHelp();
-void displaysInfo();
+void displaysInfo(NSString* optionalScreenID);
+void displayModes(NSString* screenID);
 void screenIDs();
 void setMainScreen(NSString* screenID, NSString* othersStartingPosition);
 void swapDisplays();
@@ -53,7 +58,22 @@ int main (int argc, const char * argv[]) {
 	} else if ([[pInfo objectAtIndex:1] isEqualToString:@"-h"]) {
 		printHelp();
 	} else if ([[pInfo objectAtIndex:1] isEqualToString:@"-info"]) {
-		displaysInfo();
+        NSString* screenID = [[NSUserDefaults standardUserDefaults] stringForKey:@"info"];
+        if (screenID && [screenID intValue] == 0) {
+            printHelp();
+        } else if (screenID) {
+            displaysInfo(screenID);
+        } else {
+            displaysInfo(nil);
+        }
+    } else if ([[pInfo objectAtIndex:1] isEqualToString:@"-modes"]) {
+        NSString* screenID = [[NSUserDefaults standardUserDefaults] stringForKey:@"modes"];
+        if (!screenID || [screenID intValue] == 0) {
+            printHelp();
+        } else {
+            displaysInfo(screenID);
+            displayModes(screenID);
+        }
 	} else if ([[pInfo objectAtIndex:1] isEqualToString:@"-screenIDs"]) {
 		screenIDs();
 	} else if ([[pInfo objectAtIndex:1] isEqualToString:@"-setMainID"]) {
@@ -191,6 +211,9 @@ void setMainScreen(NSString* screenID, NSString* othersStartingPosition) {
 }
 
 void setScreenActive(NSString* screenID, BOOL active) {
+    if (!screenID) {
+        exit(1);
+    }
     CGDirectDisplayID cgScreenID = (CGDirectDisplayID)[screenID intValue];
     CGDisplayConfigRef config;
     CGBeginDisplayConfiguration(&config);
@@ -214,13 +237,15 @@ void printHelp() {
 	
 	NSString* c = @"Usage: hmscreens";
 	NSString* d = @"[-h] shows the help text";
-	NSString* e = @"[-info] shows information about the connected screens";
-	NSString* f = @"[-screenIDs] returns only the screen IDs for the connected screens";
-	NSString* g = @"[-setMainID <Screen ID>] Screen ID of the screen that you want to make the main screen";
-	NSString* h = @"[-othersStartingPosition <position>] left, right, top, or bottom";
-	NSString* i = @"\t\tuse this with -setMainID to determine placement of other screens";
-    NSString* j = @"[-activate <Screen ID>] Screen ID of an active screen that you want make inactive";
-    NSString* k = @"[-deactivate <Screen ID>] Screen ID of an inactive screen that you want to make active";
+    NSString* e = @"[-info [<Screen ID>]] Screen ID to show information about /";
+    NSString* f = @"                      without ID to show info for all connected screens";
+    NSString* g = @"[-modes <Screen ID>] Screen ID to show all supported resolution modes";
+	NSString* h = @"[-screenIDs] returns only the screen IDs for the connected screens";
+	NSString* i = @"[-setMainID <Screen ID>] Screen ID of the screen that you want to make the main screen";
+	NSString* j = @"[-othersStartingPosition <position>] left, right, top, or bottom";
+	NSString* k = @"\t\tuse this with -setMainID to determine placement of other screens";
+    NSString* l = @"[-activate <Screen ID>] Screen ID of an active screen that you want make inactive";
+    NSString* m = @"[-deactivate <Screen ID>] Screen ID of an inactive screen that you want to make active";
 
 	NSString* o = @"Examples:";
 	NSString* p = @"hmscreens -info";
@@ -234,13 +259,14 @@ void printHelp() {
 	NSString* v = @"NOTE: Global Position {0, 0} coordinate (as shown under -info)";
 	NSString* w = @"\tis the lower left corner of the main screen";
 	
-	NSString* z = [NSString stringWithFormat:@"%@\n%@\n\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n\n%@\n%@\n%@\n\n%@\n%@\n%@\n%@\n\n%@\n%@\n",a,b,c,d,e,f,g,h,i,j,k,o,p,q,r,s,t,u,v,w];
+	NSString* z = [NSString stringWithFormat:@"%@\n%@\n\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n\n%@\n%@\n%@\n\n%@\n%@\n%@\n%@\n\n%@\n%@\n",a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v,w];
 	printf("%s\n", [z UTF8String]);
 }
 
-void displaysInfo() {
+void displaysInfo(NSString* optionalScreenID) {
 	NSArray* allScreens = [NSScreen screens];
     NSMutableSet* onlineScreenIDs = [[NSMutableSet alloc] init];
+    CGDirectDisplayID cgFindScreenID = (CGDirectDisplayID)[optionalScreenID intValue];
     
 	int i;
 	for (i=0; i<[allScreens count]; i++) {
@@ -251,8 +277,11 @@ void displaysInfo() {
 		// screen id
 		NSNumber* screenID = [deviceDescription valueForKey:@"NSScreenNumber"];
 		CGDirectDisplayID cgScreenID = (CGDirectDisplayID)[screenID intValue];
-		printf("Screen ID: %i\n", [screenID intValue]);
-		
+        if (optionalScreenID && cgScreenID != cgFindScreenID) {
+            continue;
+        }
+        printf("Screen ID: %i\n", cgScreenID);
+        
         [onlineScreenIDs addObject: screenID];
         
 		// size
@@ -293,8 +322,24 @@ void displaysInfo() {
 		CGDisplayModeRef mode = CGDisplayCopyDisplayMode(cgScreenID);
 		refresh = CGDisplayModeGetRefreshRate(mode);
 		CGDisplayModeRelease(mode);
-		printf("Refresh Rate: %.1f\n", refresh);
-		
+        if (refresh != 0.0) {
+            printf("Refresh Rate: %.1f\n", refresh);
+        } else {
+            CVDisplayLinkRef displayLink;
+            if (CVDisplayLinkCreateWithCGDisplay(cgScreenID, &displayLink) == kCVReturnSuccess)
+            {
+                CVTime cvtime = CVDisplayLinkGetNominalOutputVideoRefreshPeriod(displayLink);
+                // Guard against cvtime being kCVZeroTime or kCVIndefiniteTime
+                if (cvtime.flags == 0 && cvtime.timeValue > 0)
+                {
+                    double refreshRate = ceil(cvtime.timeScale) / cvtime.timeValue;
+                    printf("Panel Refresh Rate: %.2fHz\n\n", refreshRate);
+                }
+                
+                CFRelease(displayLink);
+            }
+        }
+        
 		// usesQuartzExtreme
 		BOOL usesQuartzExtreme = CGDisplayUsesOpenGLAcceleration(cgScreenID);
 		if (usesQuartzExtreme) {
@@ -304,6 +349,10 @@ void displaysInfo() {
 		}
 		
 		printf("\n");
+        
+        if (optionalScreenID) {
+            return;
+        }
 	}
     
     const int hugeDisplaysCount = 32;
@@ -312,6 +361,10 @@ void displaysInfo() {
     if (CGGetOnlineDisplayList(hugeDisplaysCount, allDisplays, &allDisplaysCount) == kCGErrorSuccess) {
         for (int i = 0; i < allDisplaysCount; ++i) {
             CGDirectDisplayID cgScreenID = allDisplays[i];
+            if (optionalScreenID && cgScreenID != cgFindScreenID) {
+                continue;
+            }
+            
             if ([onlineScreenIDs containsObject: @(cgScreenID)]) {
                 continue;
             }
@@ -330,8 +383,56 @@ void displaysInfo() {
             printf("Size: %s\n", [NSStringFromSize(size) UTF8String]);
             
             printf("\n");
+            
+            if (optionalScreenID) {
+                return;
+            }
         }
     }
+    
+    if (optionalScreenID) {
+        printf("Screen with ID %d not found\n", cgFindScreenID);
+        exit(1);
+    }
+}
+
+void displayModes(NSString* screenID) {
+    if (!screenID) {
+        exit(1);
+    }
+    CGDirectDisplayID cgScreenID = (CGDirectDisplayID)[screenID intValue];
+    CFArrayRef modes = CGDisplayCopyAllDisplayModes(cgScreenID, nil);
+    CFIndex n = CFArrayGetCount(modes);
+    
+    printf("%d Resolution Modes for Screen ID %d:\n", (int)n, cgScreenID);
+    
+    for (CFIndex i = 0; i < n; i++) {
+        CGDisplayModeRef mode = (CGDisplayModeRef)CFArrayGetValueAtIndex(modes, i);
+        
+        uint32_t width = CGDisplayModeGetPixelWidth(mode);
+        uint32_t height = CGDisplayModeGetPixelHeight(mode);
+        
+        uint32_t pointsWidth = CGDisplayModeGetWidth(mode);  // !!! not reliably in points coordinates :(
+        double scaleFactor = 1.0;
+        // sanity check to assure division below won't crash, don't expect value to ever really be zero
+        if (width) {
+            scaleFactor = (double)width / (double)pointsWidth;
+        }
+        
+        char *nativeStr = (CGDisplayModeGetIOFlags(mode) & kDisplayModeNativeFlag) ? "(Native)" : "";
+        
+        // This returns 0 on some non CRT monitors
+        double refreshRate = CGDisplayModeGetRefreshRate(mode);
+        if (refreshRate == 0.0) {
+            printf("%2d. %ux%u %0.0fx %s\n", (int)i, width, height, scaleFactor, nativeStr);
+        } else {
+            printf("%2d. %ux%u %0.0fx @%.1fHz %s\n", (int)i, width, height, scaleFactor, refreshRate, nativeStr);
+        }
+    }
+    
+    CFRelease(modes);
+    
+    printf("\n");
 }
 
 void swapDisplays() {

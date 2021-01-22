@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4F73455725AFD4180020EE8C /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F73455625AFD4180020EE8C /* CoreVideo.framework */; };
 		8DD76F9A0486AA7600D96B5E /* hmscreens.m in Sources */ = {isa = PBXBuildFile; fileRef = 08FB7796FE84155DC02AAC07 /* hmscreens.m */; settings = {ATTRIBUTES = (); }; };
 		8DD76F9C0486AA7600D96B5E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08FB779EFE84155DC02AAC07 /* Foundation.framework */; };
 		8DD76F9F0486AA7600D96B5E /* hmscreens.1 in CopyFiles */ = {isa = PBXBuildFile; fileRef = C6859EA3029092ED04C91782 /* hmscreens.1 */; };
@@ -30,6 +31,7 @@
 		08FB7796FE84155DC02AAC07 /* hmscreens.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = hmscreens.m; sourceTree = "<group>"; };
 		08FB779EFE84155DC02AAC07 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
 		32A70AAB03705E1F00C91783 /* hmscreens_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hmscreens_Prefix.pch; sourceTree = "<group>"; };
+		4F73455625AFD4180020EE8C /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
 		8DD76FA10486AA7600D96B5E /* hmscreens */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = hmscreens; sourceTree = BUILT_PRODUCTS_DIR; };
 		94301CAE11F8447A00F5B06F /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		C6859EA3029092ED04C91782 /* hmscreens.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = hmscreens.1; sourceTree = "<group>"; };
@@ -42,6 +44,7 @@
 			files = (
 				8DD76F9C0486AA7600D96B5E /* Foundation.framework in Frameworks */,
 				94301CAF11F8447A00F5B06F /* AppKit.framework in Frameworks */,
+				4F73455725AFD4180020EE8C /* CoreVideo.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,6 +58,7 @@
 				C6859EA2029092E104C91782 /* Documentation */,
 				08FB779DFE84155DC02AAC07 /* External Frameworks and Libraries */,
 				1AB674ADFE9D54B511CA2CBB /* Products */,
+				4F73455525AFD4180020EE8C /* Frameworks */,
 			);
 			name = hmscreens;
 			sourceTree = "<group>";
@@ -83,6 +87,14 @@
 				8DD76FA10486AA7600D96B5E /* hmscreens */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		4F73455525AFD4180020EE8C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4F73455625AFD4180020EE8C /* CoreVideo.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		C6859EA2029092E104C91782 /* Documentation */ = {
