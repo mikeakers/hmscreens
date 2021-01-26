@@ -229,6 +229,10 @@ void setScreenActive(NSString* screenID, BOOL active) {
     {
         CGCompleteDisplayConfiguration(config, kCGConfigureForSession);
     }
+    
+    printf("After %sactivation:\n\n", active ? "" : "de");
+    
+    displaysInfo(screenID);
 }
 
 void printHelp() {
