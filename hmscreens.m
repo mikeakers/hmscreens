@@ -55,6 +55,7 @@ int main (int argc, const char * argv[]) {
 	
 	if ([pInfo count] == 1) {
 		printHelp();
+        displayModes(nil);
 	} else if ([[pInfo objectAtIndex:1] isEqualToString:@"-h"]) {
 		printHelp();
 	} else if ([[pInfo objectAtIndex:1] isEqualToString:@"-info"]) {
@@ -79,7 +80,7 @@ int main (int argc, const char * argv[]) {
 	} else if ([[pInfo objectAtIndex:1] isEqualToString:@"-setMainID"]) {
 		NSString* screenID = [[NSUserDefaults standardUserDefaults] stringForKey:@"setMainID"];
 		NSString* othersStartingPosition = [[NSUserDefaults standardUserDefaults] stringForKey:@"othersStartingPosition"];
-        if (!screenID || [screenID intValue] == 0 || othersStartingPosition || [othersStartingPosition length] == 0) {
+        if (!screenID || [screenID intValue] == 0 || !othersStartingPosition || [othersStartingPosition length] == 0) {
             printHelp();
         } else {
             setMainScreen(screenID, othersStartingPosition);
