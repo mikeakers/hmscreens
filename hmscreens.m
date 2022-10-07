@@ -33,6 +33,8 @@
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreVideo/CoreVideo.h>
+#import <ApplicationServices/ApplicationServices.h>
+#import <IOKit/graphics/IOGraphicsLib.h>
 
 void printHelp();
 void displaysInfo(NSString* optionalScreenID);
@@ -41,9 +43,22 @@ void screenIDs();
 void setMainScreen(NSString* screenID, NSString* othersStartingPosition);
 void swapDisplays();
 void setScreenActive(NSString* screenID, BOOL enable);
+int parseRotationParameter(NSString *rotation);
+void setScreenRotation(NSString *screenID, int rotateIndex);
+io_service_t IOServicePortFromCGDisplayID(CGDirectDisplayID displayID);
 
-// undocumented CoreGraphics function
+// undocumented CoreGraphics functions
 extern CGError CGSConfigureDisplayEnabled(CGDisplayConfigRef, CGDirectDisplayID, bool);
+
+// spotted CGSSetDisplayRotation in https://githubmemory.com/repo/NUIKit/CGSInternal/issues/3
+// however attempts to link with many guesses at its parameters all failed
+//extern CGError CGSSetDisplayRotation(CGDisplayConfigRef, CGDirectDisplayID, double);
+
+// kIOFBSetTransform comes from <IOKit/graphics/IOGraphicsTypesPrivate.h>
+// in the source for the IOGraphics family
+enum {
+    kIOFBSetTransform = 0x00000400,
+};
 
 #define MAX_DISPLAYS 32
 
@@ -100,6 +115,18 @@ int main (int argc, const char * argv[]) {
             printHelp();
         } else {
             setScreenActive(screenID, true);
+        }
+    } else if ([[pInfo objectAtIndex:1] isEqualToString:@"-rotate"]) {
+        NSString* paramstr = [[NSUserDefaults standardUserDefaults] stringForKey:@"rotate"];
+        NSArray* params = [paramstr componentsSeparatedByString:@","];
+        NSString* screenID = params.firstObject;
+        int rotateIndex; //IOOptionBits rotateOption;
+        if (params.count != 2 || [screenID intValue] == 0) {
+            printHelp();
+        } else if ((rotateIndex = parseRotationParameter([params objectAtIndex:1])) < -1) {
+            printHelp();
+        } else {
+            setScreenRotation(params.firstObject, rotateIndex);
         }
     } else {
         printHelp();
@@ -237,6 +264,93 @@ void setScreenActive(NSString* screenID, BOOL active) {
     displaysInfo(screenID);
 }
 
+int parseRotationParameter(NSString *rotation) {
+    int value = [rotation intValue];
+    if (value >= 0 && value <= 3) {
+        return value;
+    }
+    while (value < 0) {
+        value += 360;
+    }
+    value = value % 360;
+    if (value == 0 || value == 90 || value == 180 || value == 270) {
+        return value / 90;
+    }
+    return 0;
+}
+
+void setScreenRotation(NSString *screenID, int rotateIndex) {
+    if (!screenID || rotateIndex < 0 || rotateIndex > 3) {
+        exit(1);
+    }
+    CGDirectDisplayID cgScreenID = (CGDirectDisplayID)[screenID intValue];
+
+    /*
+    // tried this with the undocumented CGSSetDisplayRotation first
+
+    CGDisplayConfigRef config;
+    CGBeginDisplayConfiguration(&config);
+    
+    CGError err = CGSSetDisplayRotation(config, cgScreenID, rotateValue*90.0);
+    
+    if (err != kCGErrorSuccess)
+    {
+        printf("Error: Unable to rotate screen ID %s, error %d\n", [screenID UTF8String], err);
+        CGCancelDisplayConfiguration(config);
+        exit(-1);
+    }
+    else
+    {
+        CGCompleteDisplayConfiguration(config, kCGConfigureForSession);
+    }
+    
+    printf("After rotation:\n\n");
+    
+    displaysInfo(screenID);
+    */
+
+    // parts below based on <https://github.com/CdLbB/fb-rotate/blob/master/fb-rotate.c>:
+
+    // in Yosemite it seems important to have a call to CGGetOnlineDisplayList() before calling
+    // CGDisplayIOServicePort() or the later replacements CGDisplayVendorNumber() etc.
+    // otherwise this program can hang.
+    const int hugeDisplaysCount = 32;
+    uint32_t allDisplaysCount = 0;
+    CGDirectDisplayID allDisplays[hugeDisplaysCount];
+    if (CGGetOnlineDisplayList(hugeDisplaysCount, allDisplays, &allDisplaysCount) != kCGErrorSuccess) {
+        printf("Error: Failed to access screens\n");
+        exit(-1);
+    }
+
+    io_service_t service = IOServicePortFromCGDisplayID(cgScreenID);
+    if (!service) {
+        printf("Error: Failed to find IOService for screen ID %d\n", cgScreenID);
+        exit(1);
+    }
+
+    static IOOptionBits anglebits[] = {
+        (kIOFBSetTransform | (kIOScaleRotate0)   << 16),
+        (kIOFBSetTransform | (kIOScaleRotate90)  << 16),
+        (kIOFBSetTransform | (kIOScaleRotate180) << 16),
+        (kIOFBSetTransform | (kIOScaleRotate270) << 16)
+    };
+    IOOptionBits option = anglebits[rotateIndex];
+
+    // We will get an error if the target display doesn't support the kIOFBSetTransform option for IOServiceRequestProbe()
+    kern_return_t  err = IOServiceRequestProbe(service, option);
+
+    IOObjectRelease(service);
+
+    if (err != kCGErrorSuccess) {
+        printf("Error: Unable to set rotation for screen ID %d, likely not a supported operation (%#x)\n", cgScreenID, err);
+        exit(1);
+    }
+
+    printf("After rotation:\n\n");
+    
+    displaysInfo(screenID);
+}
+
 void printHelp() {
     NSString* a = @"Use hmscreens to either get information about your screens";
     NSString* b = @"or for setting the main screen (the screen with the menu bar).";
@@ -252,21 +366,22 @@ void printHelp() {
     NSString* k = @"\t\tuse this with -setMainID to determine placement of other screens";
     NSString* l = @"[-activate <Screen ID>] Screen ID of an active screen that you want make inactive";
     NSString* m = @"[-deactivate <Screen ID>] Screen ID of an inactive screen that you want to make active";
+    NSString* o = @"[-rotate <Screen ID>,(0/1/90/2/180/3/270)] Screen ID and rotation you want for that screen";
 
-    NSString* o = @"Examples:";
-    NSString* p = @"hmscreens -info";
-    NSString* q = @"\treturns information about your attached screens including the Screen ID";
+    NSString* p = @"Examples:";
+    NSString* q = @"hmscreens -info";
+    NSString* r = @"\treturns information about your attached screens including the Screen ID";
     
-    NSString* r = @"hmscreens -setMainID 69670848 -othersStartingPosition left";
-    NSString* s = @"\tmakes the screen with the Screen ID 69670848 the main screen.";
-    NSString* t = @"\tAlso positions other screens to the left of the main screen as shown";
-    NSString* u = @"\tunder the \"Arrangement\" section of the Displays preference pane.";
+    NSString* s = @"hmscreens -setMainID 69670848 -othersStartingPosition left";
+    NSString* t = @"\tmakes the screen with the Screen ID 69670848 the main screen.";
+    NSString* u = @"\tAlso positions other screens to the left of the main screen as shown";
+    NSString* v = @"\tunder the \"Arrangement\" section of the Displays preference pane.";
     
-    NSString* v = @"NOTE: Global Position {0, 0} coordinate (as shown under -info)";
-    NSString* w = @"\tis the lower left corner of the main screen";
+    NSString* w = @"NOTE: Global Position {0, 0} coordinate (as shown under -info)";
+    NSString* x = @"\tis the lower left corner of the main screen";
     
-    NSString* z = [NSString stringWithFormat:@"%@\n%@\n\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n\n%@\n%@\n%@\n\n%@\n%@\n%@\n%@\n\n%@\n%@\n",a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v,w];
-    printf("%s\n", [z UTF8String]);
+    NSString* help = [NSString stringWithFormat:@"%@\n%@\n%@\n\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n%@\n\n%@\n%@\n%@\n\n%@\n%@\n%@\n%@\n\n%@\n%@\n",a,b,c,d,e,f,g,h,i,j,k,l,m,o,p,q,r,s,t,u,v,w,x];
+    printf("%s\n", [help UTF8String]);
 }
 
 void displaysInfo(NSString* optionalScreenID) {
@@ -473,4 +588,68 @@ void swapDisplays() {
             setMainScreen(screenID.stringValue, @"left");
         }
     }
+}
+
+// based on <https://github.com/glfw/glfw/blob/e0a6772e5e4c672179fc69a90bcda3369792ed1f/src/cocoa_monitor.m>
+// Returns the io_service_t corresponding to a CG display ID, or 0 on failure.
+// The io_service_t should be released with IOObjectRelease when not needed.
+//
+io_service_t IOServicePortFromCGDisplayID(CGDirectDisplayID displayID)
+{
+    io_iterator_t iter;
+    io_service_t serv, servicePort = 0;
+    
+    CFMutableDictionaryRef matching = IOServiceMatching("IODisplayConnect");
+    
+    // releases matching for us
+    kern_return_t err = IOServiceGetMatchingServices(kIOMasterPortDefault,
+                                                     matching,
+                                                     &iter);
+    if (err)
+        return 0;
+    
+    while ((serv = IOIteratorNext(iter)) != 0)
+    {
+        CFDictionaryRef info;
+        CFIndex vendorID, productID, serialNumber = 0;
+        CFNumberRef vendorIDRef, productIDRef, serialNumberRef;
+        Boolean success;
+        
+        info = IODisplayCreateInfoDictionary(serv, kIODisplayOnlyPreferredName);
+        
+        vendorIDRef = CFDictionaryGetValue(info, CFSTR(kDisplayVendorID));
+        productIDRef = CFDictionaryGetValue(info, CFSTR(kDisplayProductID));
+        serialNumberRef = CFDictionaryGetValue(info, CFSTR(kDisplaySerialNumber));
+        
+        success = CFNumberGetValue(vendorIDRef, kCFNumberCFIndexType, &vendorID);
+        success &= CFNumberGetValue(productIDRef, kCFNumberCFIndexType, &productID);
+        success &= (!serialNumberRef ? YES : CFNumberGetValue(serialNumberRef, kCFNumberCFIndexType, &serialNumber));
+        
+        if (!success)
+        {
+            CFRelease(info);
+            continue;
+        }
+        
+        // If the vendor and product id along with the serial don't match
+        // then we are not looking at the correct monitor.
+        // NOTE: The serial number is important in cases where two monitors
+        //       are the exact same.
+        if (CGDisplayVendorNumber(displayID) != vendorID  ||
+            CGDisplayModelNumber(displayID) != productID  ||
+            (serialNumberRef && CGDisplaySerialNumber(displayID) != serialNumber))
+        {
+            CFRelease(info);
+            continue;
+        }
+        
+        // The VendorID, Product ID, and the Serial Number all Match Up!
+        // Therefore we have found the appropriate display io_service
+        servicePort = serv;
+        CFRelease(info);
+        break;
+    }
+    
+    IOObjectRelease(iter);
+    return servicePort;
 }
