@@ -197,13 +197,13 @@ void setMainScreen(NSString* screenID, NSString* othersStartingPosition) {
             NSString* thisPos = [othersPos objectAtIndex:othersCount];
             
             if ([thisPos isEqualToString:@"left"]) {
-                CGConfigureDisplayOrigin(config, activeDisplays[i], -1*CGDisplayPixelsWide(activeDisplays[i]), 0);
+                CGConfigureDisplayOrigin(config, activeDisplays[i], -1*((int32_t)CGDisplayPixelsWide(activeDisplays[i])), 0);
             } else if ([thisPos isEqualToString:@"right"]) {
-                CGConfigureDisplayOrigin(config, activeDisplays[i], CGDisplayPixelsWide(activeDisplays[newMainScreenIndex]), 0);
+                CGConfigureDisplayOrigin(config, activeDisplays[i], (int32_t)CGDisplayPixelsWide(activeDisplays[newMainScreenIndex]), 0);
             } else if ([thisPos isEqualToString:@"top"]) {
-                CGConfigureDisplayOrigin(config, activeDisplays[i], 0, -1*CGDisplayPixelsHigh(activeDisplays[i]));
+                CGConfigureDisplayOrigin(config, activeDisplays[i], 0, -1*((int32_t)CGDisplayPixelsHigh(activeDisplays[i])));
             } else if ([thisPos isEqualToString:@"bottom"]) {
-                CGConfigureDisplayOrigin(config, activeDisplays[i], 0, CGDisplayPixelsHigh(activeDisplays[newMainScreenIndex]));
+                CGConfigureDisplayOrigin(config, activeDisplays[i], 0, (int32_t)CGDisplayPixelsHigh(activeDisplays[newMainScreenIndex]));
             }
             othersCount++;
         }
@@ -225,6 +225,7 @@ void setScreenActive(NSString* screenID, BOOL active) {
     {
         printf("Error: Unable to %s screen ID %s, error %d\n", active?"activate":"deactivate", [screenID UTF8String], err);
         CGCancelDisplayConfiguration(config);
+        exit(1);
     }
     else
     {
@@ -289,6 +290,9 @@ void displaysInfo(NSString* optionalScreenID) {
         
         [onlineScreenIDs addObject: screenID];
         
+        // vendor product serial values
+        printf("Vendor / Product / Serial #: %x %x %x\n", CGDisplayVendorNumber(cgScreenID), CGDisplayModelNumber(cgScreenID), CGDisplaySerialNumber(cgScreenID));
+        
         // size
         NSSize size = [[deviceDescription objectForKey:NSDeviceSize] sizeValue];
         printf("Size: %s\n", [NSStringFromSize(size) UTF8String]);
@@ -307,7 +311,7 @@ void displaysInfo(NSString* optionalScreenID) {
         
         // depth ie. 32 & 24 are millions of colors, 16 is thousands, 8 is 256
         NSWindowDepth depth = [thisScreen depth];
-        int bpp = NSBitsPerPixelFromDepth(depth);
+        int bpp = (int)NSBitsPerPixelFromDepth(depth);
         printf("BitsPerPixel: %d\n", bpp);
 
         // bpp might not report >24 when HDR. this is from SO, quite possible it's wrong
@@ -414,10 +418,10 @@ void displayModes(NSString* screenID) {
     for (CFIndex i = 0; i < n; i++) {
         CGDisplayModeRef mode = (CGDisplayModeRef)CFArrayGetValueAtIndex(modes, i);
         
-        uint32_t width = CGDisplayModeGetPixelWidth(mode);
-        uint32_t height = CGDisplayModeGetPixelHeight(mode);
+        uint32_t width = (uint32_t)CGDisplayModeGetPixelWidth(mode);
+        uint32_t height = (uint32_t)CGDisplayModeGetPixelHeight(mode);
         
-        uint32_t pointsWidth = CGDisplayModeGetWidth(mode);  // !!! not reliably in points coordinates :(
+        uint32_t pointsWidth = (uint32_t)CGDisplayModeGetWidth(mode);  // !!! not reliably in points coordinates :(
         double scaleFactor = 1.0;
         // sanity check to assure division below won't crash, don't expect value to ever really be zero
         if (width) {
