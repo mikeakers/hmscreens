@@ -36,15 +36,17 @@
 #import <ApplicationServices/ApplicationServices.h>
 #import <IOKit/graphics/IOGraphicsLib.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 void printHelp();
-void displaysInfo(NSString* optionalScreenID);
+void displaysInfo(NSString* _Nullable specificScreenID);
 void displayModes(NSString* screenID);
 void screenIDs();
 void setMainScreen(NSString* screenID, NSString* othersStartingPosition);
 void swapDisplays();
 void setScreenActive(NSString* screenID, BOOL enable);
-int parseRotationParameter(NSString *rotation);
-void setScreenRotation(NSString *screenID, int rotateIndex);
+int parseRotationParameter(NSString* rotation);
+void setScreenRotation(NSString* screenID, int rotateIndex);
 io_service_t IOServicePortFromCGDisplayID(CGDirectDisplayID displayID);
 
 // undocumented CoreGraphics functions
@@ -60,6 +62,8 @@ enum {
     kIOFBSetTransform = 0x00000400,
 };
 
+NS_ASSUME_NONNULL_END
+
 #define MAX_DISPLAYS 32
 
 int main (int argc, const char * argv[]) {
@@ -70,7 +74,7 @@ int main (int argc, const char * argv[]) {
     
     if ([pInfo count] == 1) {
         printHelp();
-        displayModes(nil);
+
     } else if ([[pInfo objectAtIndex:1] isEqualToString:@"-h"]) {
         printHelp();
     } else if ([[pInfo objectAtIndex:1] isEqualToString:@"-info"]) {
@@ -264,7 +268,7 @@ void setScreenActive(NSString* screenID, BOOL active) {
     displaysInfo(screenID);
 }
 
-int parseRotationParameter(NSString *rotation) {
+int parseRotationParameter(NSString* rotation) {
     int value = [rotation intValue];
     if (value >= 0 && value <= 3) {
         return value;
@@ -279,7 +283,7 @@ int parseRotationParameter(NSString *rotation) {
     return 0;
 }
 
-void setScreenRotation(NSString *screenID, int rotateIndex) {
+void setScreenRotation(NSString* screenID, int rotateIndex) {
     if (!screenID || rotateIndex < 0 || rotateIndex > 3) {
         exit(1);
     }
@@ -384,10 +388,10 @@ void printHelp() {
     printf("%s\n", [help UTF8String]);
 }
 
-void displaysInfo(NSString* optionalScreenID) {
+void displaysInfo(NSString* _Nullable specificScreenID) {
     NSArray* allScreens = [NSScreen screens];
     NSMutableSet* onlineScreenIDs = [[NSMutableSet alloc] init];
-    CGDirectDisplayID cgFindScreenID = (CGDirectDisplayID)[optionalScreenID intValue];
+    CGDirectDisplayID cgFindScreenID = (CGDirectDisplayID)[specificScreenID intValue];
     
     int i;
     for (i=0; i<[allScreens count]; i++) {
@@ -398,7 +402,7 @@ void displaysInfo(NSString* optionalScreenID) {
         // screen id
         NSNumber* screenID = [deviceDescription valueForKey:@"NSScreenNumber"];
         CGDirectDisplayID cgScreenID = (CGDirectDisplayID)[screenID intValue];
-        if (optionalScreenID && cgScreenID != cgFindScreenID) {
+        if (specificScreenID && cgScreenID != cgFindScreenID) {
             continue;
         }
         printf("Screen ID: %i\n", cgScreenID);
@@ -474,7 +478,7 @@ void displaysInfo(NSString* optionalScreenID) {
         
         printf("\n");
         
-        if (optionalScreenID) {
+        if (specificScreenID) {
             return;
         }
     }
@@ -485,7 +489,7 @@ void displaysInfo(NSString* optionalScreenID) {
     if (CGGetOnlineDisplayList(hugeDisplaysCount, allDisplays, &allDisplaysCount) == kCGErrorSuccess) {
         for (int i = 0; i < allDisplaysCount; ++i) {
             CGDirectDisplayID cgScreenID = allDisplays[i];
-            if (optionalScreenID && cgScreenID != cgFindScreenID) {
+            if (specificScreenID && cgScreenID != cgFindScreenID) {
                 continue;
             }
             
@@ -501,6 +505,9 @@ void displaysInfo(NSString* optionalScreenID) {
                 printf("Additional omitted screen ID: %d\n", cgScreenID);
             }
             
+            // vendor product serial values
+            printf("Vendor / Product / Serial #: %x %x %x\n", CGDisplayVendorNumber(cgScreenID), CGDisplayModelNumber(cgScreenID), CGDisplaySerialNumber(cgScreenID));
+
             // size
             CGDisplayModeRef mode = CGDisplayCopyDisplayMode(cgScreenID);
             NSSize size = NSMakeSize(CGDisplayModeGetPixelWidth(mode), CGDisplayModeGetPixelHeight(mode));
@@ -508,19 +515,19 @@ void displaysInfo(NSString* optionalScreenID) {
             
             printf("\n");
             
-            if (optionalScreenID) {
+            if (specificScreenID) {
                 return;
             }
         }
     }
     
-    if (optionalScreenID) {
+    if (specificScreenID) {
         printf("Screen with ID %d not found\n", cgFindScreenID);
         exit(1);
     }
 }
 
-void displayModes(NSString* screenID) {
+void displayModes(NSString* _Nonnull screenID) {
     if (!screenID) {
         exit(1);
     }
